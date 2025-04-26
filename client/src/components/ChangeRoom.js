@@ -8,7 +8,10 @@ export function ChangeRoomModal({
   rooms, 
   selectedRoomId, 
   setSelectedRoomId, 
-  onSuccess 
+  onSuccess,
+  setShowToast,
+  setToastMessage,
+  setToastVariant
 }) {
   const API_URL = process.env.REACT_APP_API_URL;
 
@@ -31,7 +34,10 @@ export function ChangeRoomModal({
       onSuccess();
       onHide();
     } catch (err) {
-      alert(`Nepodarilo sa zmeniť izbu: ${err.message}`);
+      console.error(err);
+      setToastMessage('Nepodarilo sa zmeniť izbu.');
+      setToastVariant('danger');
+      setShowToast(true);
     }
   };
 

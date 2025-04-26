@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Spinner, Alert, Button, Modal, Form } from 'react-bootstrap';
-import { FaPlus } from 'react-icons/fa';
+import { Container, Spinner, Alert, Button, Modal, Form, Toast } from 'react-bootstrap';
+import { FaPlus, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import StudentsTable from '../components/StudentsTable';
 import StudentsCards from '../components/StudentsCards';
 import ChangeRoomModal from '../components/ChangeRoom';
@@ -26,6 +26,10 @@ function StudentsPage() {
     PSC: '',
     id_izba: ''
   });
+
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVariant, setToastVariant] = useState('success');
 
   const API_URL = process.env.REACT_APP_API_URL;
 
@@ -73,9 +77,15 @@ function StudentsPage() {
         meno: '', priezvisko: '', datum_narodenia: '', email: '',
         ulica: '', mesto: '', PSC: '', id_izba: ''
       });
+
+      setToastMessage('Študent bol úspešne pridaný.');
+      setToastVariant('success');
+      setShowToast(true);
     } catch (err) {
       console.error(err);
-      alert("Nepodarilo sa pridať študenta.");
+      setToastMessage('Študenta sa nepodarilo pridať.');
+      setToastVariant('danger');
+      setShowToast(true);
     }
   };
 
@@ -91,10 +101,15 @@ function StudentsPage() {
         body: JSON.stringify({ id_ziak })
       });
       if (!res.ok) throw new Error('Chyba pri mazaní študenta');
-      // await fetchData();
+      
+      setToastMessage('Študent úspešne odstránený.');
+      setToastVariant('success');
+      setShowToast(true);
     } catch (err) {
       console.error(err);
-      alert("Nepodarilo sa odstrániť študenta.");
+      setToastMessage('Nepodarilo sa odstrániť študenta.');
+      setToastVariant('danger');
+      setShowToast(true);
     }
   };
 
@@ -117,6 +132,9 @@ function StudentsPage() {
       )
     );
     setShowEditModal(false);
+    setToastMessage('Izba študenta bola úspešne zmenená.');
+    setToastVariant('success');
+    setShowToast(true);
   };
 
   return (
@@ -214,8 +232,34 @@ function StudentsPage() {
         selectedRoomId={newRoomId}
         setSelectedRoomId={setNewRoomId}
         onSuccess={handleRoomChangeSuccess}
+        setShowToast={setShowToast}
+        setToastMessage={setToastMessage}
+        setToastVariant={setToastVariant}
       />
       
+      <Toast
+          onClose={() => setShowToast(false)}
+          show={showToast}
+          className={"position-fixed bottom-0 end-0 m-3"}
+          delay={3000}
+          autohide
+          style={{
+            minWidth: '300px',
+            backgroundColor: 'white',
+            minHeight: '90px',
+            borderRadius: '16px',
+          }}
+        >
+          <Toast.Body className="d-flex align-items-center">
+            {toastVariant === 'success' ? (
+              <FaCheckCircle className="text-success" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+            ) : (
+              <FaTimesCircle className="text-danger" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+            )}
+            <span style={{ fontSize: '1.7rem' }}>{toastMessage}</span>
+          </Toast.Body>
+        </Toast>
+
     </Container>
   );
 }

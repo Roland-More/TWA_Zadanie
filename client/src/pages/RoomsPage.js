@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Container, Row, Col, Card, Spinner, Alert, Table, Button, Modal, Form } from 'react-bootstrap';
-import { FaBed, FaTrashAlt, FaPlus, FaExchangeAlt } from 'react-icons/fa';
+import { Container, Row, Col, Card, Spinner, Alert, Table, Button, Modal, Form, Toast } from 'react-bootstrap';
+import { FaBed, FaTrashAlt, FaPlus, FaExchangeAlt, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import ChangeRoomModal from '../components/ChangeRoom';
 
 function RoomsPage() {
@@ -15,6 +15,10 @@ function RoomsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [newRoomId, setNewRoomId] = useState('');
+
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVariant, setToastVariant] = useState('success');
 
   const API_URL = process.env.REACT_APP_API_URL;
 
@@ -42,6 +46,33 @@ function RoomsPage() {
     return students.filter(s => s.id_izba === roomId);
   };
 
+  const handleAddRoom = async () => {
+    try {
+      const res = await fetch(`${API_URL}/izba/insert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cislo: parseInt(newRoomCislo),
+          kapacita: parseInt(newRoomKapacita)
+        })
+      });
+
+      if (!res.ok) throw new Error('Chyba pri vytváraní izby');
+
+      setShowAddModal(false);
+      setNewRoomCislo('');
+      setNewRoomKapacita('');
+      setToastMessage('Nová izba bola úspešne pridaná.');
+      setToastVariant('success');
+      setShowToast(true);
+    } catch (err) {
+      console.error(err);
+      setToastMessage('Nepodarilo sa pridať izbu.');
+      setToastVariant('danger');
+      setShowToast(true);
+    }
+  }
+
   const handleDeleteRoom = async (roomId) => {
     if (!window.confirm("Naozaj chcete odstrániť túto izbu?")) return;
     try {
@@ -51,9 +82,15 @@ function RoomsPage() {
         body: JSON.stringify({ id_izba: roomId })
       });
       if (!res.ok) throw new Error("Chyba pri odstraňovaní izby");
+
+      setToastMessage('Izba bola úspešne odstránená.');
+      setToastVariant('success');
+      setShowToast(true);
     } catch (err) {
       console.error(err);
-      alert("Nepodarilo sa odstrániť izbu.");
+      setToastMessage('Nepodarilo sa odstrániť izbu.');
+      setToastVariant('danger');
+      setShowToast(true);
     }
   };
 
@@ -67,7 +104,6 @@ function RoomsPage() {
   };
 
   const handleRoomChangeSuccess = () => {
-    // Update the local state to reflect the room change
     setStudents(prevStudents =>
       prevStudents.map(student =>
         student.id_ziak === selectedStudent.id_ziak
@@ -76,6 +112,9 @@ function RoomsPage() {
       )
     );
     setShowEditModal(false);
+    setToastMessage('Izba študenta bola úspešne zmenená.');
+    setToastVariant('success');
+    setShowToast(true);
   };
 
   return (
@@ -138,6 +177,7 @@ function RoomsPage() {
                             </td>
                           </tr>
                         ))}
+                        
                         {studentsInRoom.length === 0 && (
                           <tr>
                             <td colSpan="4" className="text-center text-muted">Žiadny študenti</td>
@@ -196,27 +236,7 @@ function RoomsPage() {
           </Button>
           <Button
             variant="primary"
-            onClick={async () => {
-              try {
-                const res = await fetch(`${API_URL}/izba/insert`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    cislo: parseInt(newRoomCislo),
-                    kapacita: parseInt(newRoomKapacita)
-                  })
-                });
-
-                if (!res.ok) throw new Error('Chyba pri vytváraní izby');
-
-                setShowAddModal(false);
-                setNewRoomCislo('');
-                setNewRoomKapacita('');
-              } catch (err) {
-                console.error(err);
-                alert('Nepodarilo sa pridať izbu.');
-              }
-            }}
+            onClick={handleAddRoom}
           >
             Pridať izbu
           </Button>
@@ -231,8 +251,34 @@ function RoomsPage() {
         selectedRoomId={newRoomId}
         setSelectedRoomId={setNewRoomId}
         onSuccess={handleRoomChangeSuccess}
+        setShowToast={setShowToast}
+        setToastMessage={setToastMessage}
+        setToastVariant={setToastVariant}
       />
 
+        <Toast
+          onClose={() => setShowToast(false)}
+          show={showToast}
+          className={"position-fixed bottom-0 end-0 m-3"}
+          delay={3000}
+          autohide
+          style={{
+            minWidth: '300px',
+            backgroundColor: 'white',
+            minHeight: '90px',
+            borderRadius: '16px',
+          }}
+        >
+          <Toast.Body className="d-flex align-items-center">
+            {toastVariant === 'success' ? (
+              <FaCheckCircle className="text-success" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+            ) : (
+              <FaTimesCircle className="text-danger" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+            )}
+            <span style={{ fontSize: '1.7rem' }}>{toastMessage}</span>
+          </Toast.Body>
+        </Toast>
+      
     </Container>
   );
 }
