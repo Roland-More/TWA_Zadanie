@@ -10,12 +10,12 @@ const kartaRoutes = require('./routes/kartaRoutes');
 const stravaRoutes = require('./routes/stravaRoutes');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT;
 
 app.use(express.json());
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001']
+  origin: process.env.CORS_ORIGIN
 }));
 
 // Verify database connection at startup

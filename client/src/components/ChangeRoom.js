@@ -26,18 +26,33 @@ export function ChangeRoomModal({
         })
       });
 
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        data = {};
+      }
+      
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Chyba pri zmene izby');
+        let errorMessage = 'Nepodarilo sa zmeniť izbu';
+        
+        if (data) {
+          if (data.message) errorMessage = data.message;
+          else if (data.error) errorMessage = data.error;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       onSuccess();
       onHide();
     } catch (err) {
-      console.error(err);
-      setToastMessage('Nepodarilo sa zmeniť izbu.');
+      console.error('Error changing room:', err);
+      setToastMessage(err.message);
       setToastVariant('danger');
       setShowToast(true);
+      onHide();
     }
   };
 

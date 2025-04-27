@@ -1,4 +1,5 @@
 const ziakService = require('../services/ziakService');
+const ziakValidator = require('../validators/ziakValidator');
 
 exports.getAll = async (req, res) => {
   try {
@@ -12,11 +13,19 @@ exports.getAll = async (req, res) => {
 
 exports.insert = async (req, res) => {
   try {
+    const isValid = ziakValidator.validateStudent(req.body);
+    if (!isValid) {
+        return res.status(400).json({
+            message: 'Neplatné dáta',
+            errors: ziakValidator.validateStudent.errors
+        });
+    }
+
     const result = await ziakService.insert(req.body);
     res.status(201).json(result);
   } catch (err) {
     console.error('Error inserting student:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ message: err.message || 'Nepodarilo sa pridať študenta' });
   }
 };
 

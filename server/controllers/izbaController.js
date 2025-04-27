@@ -1,4 +1,5 @@
 const izbaService = require('../services/izbaService');
+const izbaValidator = require('../validators/izbaValidator');
 
 exports.getAll = async (req, res) => {
     try {
@@ -12,6 +13,14 @@ exports.getAll = async (req, res) => {
 
 exports.insert = async (req, res) => {
     try {
+        const isValid = izbaValidator.validateRoom(req.body);
+        if (!isValid) {
+            return res.status(400).json({
+                message: 'Neplatné dáta',
+                errors: izbaValidator.validateRoom.errors
+            });
+        }
+
         const { cislo, kapacita } = req.body;
         const result = await izbaService.insertRoom(cislo, kapacita);
         res.status(201).json(result);

@@ -6,10 +6,6 @@ exports.getAllRooms = async () => {
 
 exports.insertRoom = async (cislo, kapacita) => {
     try {
-        if (!cislo || !kapacita) {
-            throw new Error('Číslo izby a kapacita sú povinné polia');
-        }
-        
         const result = await izbaDao.insert(cislo, kapacita);
         return { success: true, message: 'Izba úspešne pridaná', id_izba: result.id_izba };
     } catch (error) {

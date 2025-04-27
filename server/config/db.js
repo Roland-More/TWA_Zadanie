@@ -16,11 +16,9 @@ const config = {
 const poolPromise = new sql.ConnectionPool(config)
     .connect()
     .then(pool => {
-        console.log('Pripojenie k databáze úspešné');
         return pool;
     })
     .catch(err => {
-        console.error('Chyba pripojenia k databáze:', err);
         throw err;
     });
 

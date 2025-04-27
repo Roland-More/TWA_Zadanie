@@ -4,7 +4,7 @@ import { FaTrashAlt, FaExchangeAlt } from 'react-icons/fa';
 
 function StudentTable({ students, rooms, onDelete, onMove }) {
   return (
-    <div className="table-responsive overflow-hidden">
+    <div className="table-responsive">
       <Table striped bordered hover className="mb-0" style={{ borderRadius: '12px', overflow: 'hidden' }}>
         <thead className="table-light">
           <tr>
@@ -14,7 +14,7 @@ function StudentTable({ students, rooms, onDelete, onMove }) {
             <th>Email</th>
             <th>Adresa</th>
             <th>Izba</th>
-            <th>Odstrániť</th>
+            <th>odstrániť</th>
           </tr>
         </thead>
         <tbody>
@@ -25,7 +25,7 @@ function StudentTable({ students, rooms, onDelete, onMove }) {
               <td>{new Date(s.datum_narodenia).toLocaleDateString('sk-SK')}</td>
               <td>{s.email}</td>
               <td>{s.ulica}, {s.mesto} {s.PSC}</td>
-              <td>
+              <td className="text-center align-middle">
                 {rooms.find(room => room.id_izba === s.id_izba)?.cislo || 'Neznáma'}
                 <Button
                   variant="outline-primary"
@@ -36,7 +36,7 @@ function StudentTable({ students, rooms, onDelete, onMove }) {
                   <FaExchangeAlt style={{ fontSize: '1.5rem' }} />
                 </Button>
               </td>
-              <td className="d-flex justify-content-center">
+              <td className="text-center align-middle">
                 <Button variant="danger" size="sm" onClick={() => onDelete(s.id_ziak)}>
                   <FaTrashAlt style={{ fontSize: '1.5rem' }} />
                 </Button>

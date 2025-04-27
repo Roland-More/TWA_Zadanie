@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Container, Row, Col, Card, Spinner, Alert, Table, Button, Modal, Form, Toast } from 'react-bootstrap';
 import { FaBed, FaTrashAlt, FaPlus, FaExchangeAlt, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import ChangeRoomModal from '../components/ChangeRoom';
@@ -11,6 +11,9 @@ function RoomsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRoomCislo, setNewRoomCislo] = useState('');
   const [newRoomKapacita, setNewRoomKapacita] = useState('');
+  const [formErrors, setFormErrors] = useState({});
+  const [isFormValid, setIsFormValid] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({ cislo: false, kapacita: false });
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -25,16 +28,39 @@ function RoomsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [roomsRes, studentsRes] = await Promise.all([
-          fetch(`${API_URL}/izba/read`).then(res => res.json()),
-          fetch(`${API_URL}/ziak/read`).then(res => res.json())
-        ]);
-        setRooms(roomsRes);
-        setStudents(studentsRes);
+        const roomsRes = await fetch(`${API_URL}/izba/read`);
+        const studentsRes = await fetch(`${API_URL}/ziak/read`);
+        
+        let roomsData, studentsData;
+        
+        try {
+          roomsData = await roomsRes.json();
+          if (!roomsRes.ok) {
+            const errorMessage = roomsData.message || roomsData.error || "Nepodarilo sa načítať izby";
+            throw new Error(errorMessage);
+          }
+        } catch (err) {
+          console.error("Error parsing rooms data:", err);
+          throw new Error(err.message || "Nepodarilo sa načítať izby");
+        }
+        
+        try {
+          studentsData = await studentsRes.json();
+          if (!studentsRes.ok) {
+            const errorMessage = studentsData.message || studentsData.error || "Nepodarilo sa načítať študentov";
+            throw new Error(errorMessage);
+          }
+        } catch (err) {
+          console.error("Error parsing students data:", err);
+          throw new Error(err.message || "Nepodarilo sa načítať študentov");
+        }
+        
+        setRooms(roomsData);
+        setStudents(studentsData);
         setLoading(false);
       } catch (err) {
         console.error("Chyba pri načítaní:", err);
-        setError("Nepodarilo sa načítať údaje.");
+        setError(err.message || "Nepodarilo sa načítať údaje.");
         setLoading(false);
       }
     };
@@ -42,11 +68,96 @@ function RoomsPage() {
     fetchData();
   }, [API_URL]);
 
+  
+  // Validate form inputs
+  const validateForm = useCallback(() => {
+    const errors = {};
+    let isValid = true;
+    
+    // Only validate fields that have been touched or when submitting
+    if (touchedFields.cislo) {
+      // Validate room number (cislo)
+      if (!newRoomCislo.trim()) {
+        errors.cislo = "Číslo izby je povinné";
+        isValid = false;
+      } else if (!/^\d+$/.test(newRoomCislo.trim())) {
+        errors.cislo = "Číslo izby musí byť celé číslo";
+        isValid = false;
+      } else if (parseInt(newRoomCislo) < 1) {
+        errors.cislo = "Číslo izby musí byť väčšie ako 0";
+        isValid = false;
+      } else if (rooms.some(room => room.cislo === parseInt(newRoomCislo))) {
+        errors.cislo = "Izba s týmto číslom už existuje";
+        isValid = false;
+      }
+    }
+    
+    if (touchedFields.kapacita) {
+      // Validate capacity (kapacita)
+      if (!newRoomKapacita.trim()) {
+        errors.kapacita = "Kapacita izby je povinná";
+        isValid = false;
+      } else if (!/^\d+$/.test(newRoomKapacita.trim())) {
+        errors.kapacita = "Kapacita musí byť celé číslo";
+        isValid = false;
+      } else if (parseInt(newRoomKapacita) < 1) {
+        errors.kapacita = "Kapacita musí byť aspoň 1";
+        isValid = false;
+      }
+    }
+    
+    // For the button to be enabled, both fields need to be valid
+    const allFieldsValid = 
+      newRoomCislo.trim() && 
+      /^\d+$/.test(newRoomCislo.trim()) && 
+      parseInt(newRoomCislo) >= 1 && 
+      !rooms.some(room => room.cislo === parseInt(newRoomCislo)) &&
+      newRoomKapacita.trim() && 
+      /^\d+$/.test(newRoomKapacita.trim()) && 
+      parseInt(newRoomKapacita) >= 1;
+    
+    setFormErrors(errors);
+    setIsFormValid(allFieldsValid);
+    return isValid;
+  }, [newRoomCislo, newRoomKapacita, rooms, touchedFields]);
+  
+  // Run validation when inputs change
+  useEffect(() => {
+    if (touchedFields.cislo || touchedFields.kapacita) {
+      validateForm();
+    }
+  }, [newRoomCislo, newRoomKapacita, validateForm, touchedFields]);
+  
+  const handleInputChange = (field, value) => {
+    if (field === 'cislo') {
+      setNewRoomCislo(value);
+    } else if (field === 'kapacita') {
+      setNewRoomKapacita(value);
+    }
+    
+    // Mark field as touched
+    setTouchedFields(prev => ({
+      ...prev,
+      [field]: true
+    }));
+  };
+  
+  const resetForm = () => {
+    setNewRoomCislo('');
+    setNewRoomKapacita('');
+    setFormErrors({});
+    setIsFormValid(false);
+    setTouchedFields({ cislo: false, kapacita: false });
+  };
+
   const getStudentsForRoom = (roomId) => {
     return students.filter(s => s.id_izba === roomId);
   };
 
   const handleAddRoom = async () => {
+    // Mark all fields as touched to show all validation errors
+    setTouchedFields({ cislo: true, kapacita: true });
+  
     try {
       const res = await fetch(`${API_URL}/izba/insert`, {
         method: 'POST',
@@ -57,17 +168,29 @@ function RoomsPage() {
         })
       });
 
-      if (!res.ok) throw new Error('Chyba pri vytváraní izby');
+      const data = await res.json();
+      
+      if (!res.ok) {
+        // Extract the specific error message from the response
+        const errorMessage = data.message || data.error || 'Nepodarilo sa pridať izbu';
+        throw new Error(errorMessage);
+      }
 
       setShowAddModal(false);
-      setNewRoomCislo('');
-      setNewRoomKapacita('');
+      resetForm();
       setToastMessage('Nová izba bola úspešne pridaná.');
       setToastVariant('success');
       setShowToast(true);
+      
+      // Refresh the rooms list
+      const roomsRes = await fetch(`${API_URL}/izba/read`);
+      if (roomsRes.ok) {
+        const roomsData = await roomsRes.json();
+        setRooms(roomsData);
+      }
     } catch (err) {
-      console.error(err);
-      setToastMessage('Nepodarilo sa pridať izbu.');
+      console.error('Error adding room:', err);
+      setToastMessage(err.message);
       setToastVariant('danger');
       setShowToast(true);
     }
@@ -81,14 +204,29 @@ function RoomsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_izba: roomId })
       });
-      if (!res.ok) throw new Error("Chyba pri odstraňovaní izby");
+      
+      const data = await res.json();
+      console.log('Server response:', data, 'Status:', res.status);
+      
+      if (!res.ok) {
+        // Extract the specific error message from the response
+        const errorMessage = data.message || data.error || "Chyba pri odstraňovaní izby";
+        throw new Error(errorMessage);
+      }
 
       setToastMessage('Izba bola úspešne odstránená.');
       setToastVariant('success');
       setShowToast(true);
+      
+      // Refresh the rooms list
+      const roomsRes = await fetch(`${API_URL}/izba/read`);
+      if (roomsRes.ok) {
+        const roomsData = await roomsRes.json();
+        setRooms(roomsData);
+      }
     } catch (err) {
-      console.error(err);
-      setToastMessage('Nepodarilo sa odstrániť izbu.');
+      console.error('Error deleting room:', err);
+      setToastMessage(err.message || 'Nepodarilo sa odstrániť izbu.');
       setToastVariant('danger');
       setShowToast(true);
     }
@@ -103,18 +241,35 @@ function RoomsPage() {
     setShowEditModal(true);
   };
 
-  const handleRoomChangeSuccess = () => {
-    setStudents(prevStudents =>
-      prevStudents.map(student =>
-        student.id_ziak === selectedStudent.id_ziak
-          ? { ...student, id_izba: newRoomId }
-          : student
-      )
-    );
-    setShowEditModal(false);
-    setToastMessage('Izba študenta bola úspešne zmenená.');
-    setToastVariant('success');
-    setShowToast(true);
+  const handleRoomChangeSuccess = async () => {
+    try {
+      const [studentsRes, roomsRes] = await Promise.all([
+        fetch(`${API_URL}/ziak/read`),
+        fetch(`${API_URL}/izba/read`)
+      ]);
+      
+      const studentsData = await studentsRes.json();
+      const roomsData = await roomsRes.json();
+      
+      setStudents(studentsData);
+      setRooms(roomsData);
+      
+      setShowEditModal(false);
+      setToastMessage('Izba študenta bola úspešne zmenená.');
+      setToastVariant('success');
+      setShowToast(true);
+    } catch (err) {
+      console.error("Error refreshing data after room change:", err);
+      setShowEditModal(false);
+      setToastMessage('Izba študenta bola úspešne zmenená.');
+      setToastVariant('success');
+      setShowToast(true);
+    }
+  };
+
+  const handleModalClose = () => {
+    setShowAddModal(false);
+    resetForm();
   };
 
   return (
@@ -205,19 +360,23 @@ function RoomsPage() {
         </Row>
       )}
 
-      <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+      <Modal show={showAddModal} onHide={handleModalClose}>
         <Modal.Header closeButton>
           <Modal.Title>Pridať novú izbu</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
+          <Form noValidate>
             <Form.Group controlId="roomCislo">
               <Form.Label>Číslo izby</Form.Label>
               <Form.Control
                 type="text"
                 value={newRoomCislo}
-                onChange={(e) => setNewRoomCislo(e.target.value)}
+                onChange={(e) => handleInputChange('cislo', e.target.value)}
+                isInvalid={!!formErrors.cislo && touchedFields.cislo}
               />
+              <Form.Control.Feedback type="invalid">
+                {formErrors.cislo}
+              </Form.Control.Feedback>
             </Form.Group>
             <Form.Group controlId="roomKapacita" className="mt-3">
               <Form.Label>Kapacita</Form.Label>
@@ -225,18 +384,23 @@ function RoomsPage() {
                 type="number"
                 min="1"
                 value={newRoomKapacita}
-                onChange={(e) => setNewRoomKapacita(e.target.value)}
+                onChange={(e) => handleInputChange('kapacita', e.target.value)}
+                isInvalid={!!formErrors.kapacita && touchedFields.kapacita}
               />
+              <Form.Control.Feedback type="invalid">
+                {formErrors.kapacita}
+              </Form.Control.Feedback>
             </Form.Group>
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+          <Button variant="secondary" onClick={handleModalClose}>
             Zrušiť
           </Button>
           <Button
             variant="primary"
             onClick={handleAddRoom}
+            disabled={!isFormValid}
           >
             Pridať izbu
           </Button>
