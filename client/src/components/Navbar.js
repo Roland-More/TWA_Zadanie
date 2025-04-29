@@ -17,9 +17,9 @@ function AppNavbar() {
           <Nav className="ms-auto gap-3">
             <Nav.Link
               as={Link}
-              to="/rooms"
+              to="/"
               className={`d-flex align-items-center gap-2`}
-              style={ location.pathname === '/rooms' ? {color: "#007bff"} : {} }
+              style={ location.pathname === '/' ? {color: "#007bff"} : {} }
             >
               <FaBed /> Izby
             </Nav.Link>

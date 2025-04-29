@@ -5,7 +5,7 @@ import StudentsPage from '../pages/StudentsPage';
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/rooms" element={<RoomsPage />} />
+      <Route path="/" element={<RoomsPage />} />
       <Route path="/students" element={<StudentsPage />} />
     </Routes>
   );

@@ -129,12 +129,9 @@ function StudentsPage() {
         throw new Error(errorMessage);
       }
   
-      // Check if data.student exists, otherwise use data directly or create our own object
       const newStudentData = {
         ...values,
-        // If the server doesn't return the ID, we need to fetch the student list again
-        // This is a fallback and not ideal
-        id_ziak: data.id_ziak || Date.now() // Try to use any ID returned from server
+        id_ziak: data.id_ziak // Try to use any ID returned from server
       };
       
       // Ensure id_izba is a number
