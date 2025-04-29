@@ -128,7 +128,7 @@ function StudentsPage() {
         
         throw new Error(errorMessage);
       }
-  
+      
       const newStudentData = {
         ...values,
         id_ziak: data.id_ziak // Try to use any ID returned from server
