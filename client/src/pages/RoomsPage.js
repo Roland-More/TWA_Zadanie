@@ -1,13 +1,22 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Container, Row, Col, Card, Spinner, Alert, Table, Button, Modal, Form, Toast } from 'react-bootstrap';
 import { FaBed, FaTrashAlt, FaPlus, FaExchangeAlt, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import ChangeRoomModal from '../components/ChangeRoom';
+import { useData } from '../context/DataContext';
 
 function RoomsPage() {
-  const [rooms, setRooms] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Get data and functions from DataContext
+  const {
+    students,
+    rooms,
+    loading,
+    error,
+    changeStudentRoom, // Function to move student to different room
+    addRoom,        // Function to add a new room
+    deleteRoom      // Function to delete a room
+  } = useData();
+
+  // Local state for UI
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRoomCislo, setNewRoomCislo] = useState('');
   const [newRoomKapacita, setNewRoomKapacita] = useState('');
@@ -23,53 +32,7 @@ function RoomsPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastVariant, setToastVariant] = useState('success');
 
-  const API_URL = process.env.REACT_APP_API_URL;
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const roomsRes = await fetch(`${API_URL}/izba/read`);
-        const studentsRes = await fetch(`${API_URL}/ziak/read`);
-        
-        let roomsData, studentsData;
-        
-        try {
-          roomsData = await roomsRes.json();
-          if (!roomsRes.ok) {
-            const errorMessage = roomsData.message || roomsData.error || "Nepodarilo sa načítať izby";
-            throw new Error(errorMessage);
-          }
-        } catch (err) {
-          console.error("Error parsing rooms data:", err);
-          throw new Error(err.message || "Nepodarilo sa načítať izby");
-        }
-        
-        try {
-          studentsData = await studentsRes.json();
-          if (!studentsRes.ok) {
-            const errorMessage = studentsData.message || studentsData.error || "Nepodarilo sa načítať študentov";
-            throw new Error(errorMessage);
-          }
-        } catch (err) {
-          console.error("Error parsing students data:", err);
-          throw new Error(err.message || "Nepodarilo sa načítať študentov");
-        }
-        
-        setRooms(roomsData);
-        setStudents(studentsData);
-        setLoading(false);
-      } catch (err) {
-        console.error("Chyba pri načítaní:", err);
-        setError(err.message || "Nepodarilo sa načítať údaje.");
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [API_URL]);
-
-  
-  // Validate form inputs
+  // Form validation
   const validateForm = useCallback(() => {
     const errors = {};
     let isValid = true;
@@ -122,7 +85,7 @@ function RoomsPage() {
   }, [newRoomCislo, newRoomKapacita, rooms, touchedFields]);
   
   // Run validation when inputs change
-  useEffect(() => {
+  React.useEffect(() => {
     if (touchedFields.cislo || touchedFields.kapacita) {
       validateForm();
     }
@@ -154,39 +117,27 @@ function RoomsPage() {
     return students.filter(s => s.id_izba === roomId);
   };
 
+  // Add room function - now uses context function
   const handleAddRoom = async () => {
     // Mark all fields as touched to show all validation errors
     setTouchedFields({ cislo: true, kapacita: true });
-  
+    
+    if (!validateForm()) return;
+    
     try {
-      const res = await fetch(`${API_URL}/izba/insert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cislo: parseInt(newRoomCislo),
-          kapacita: parseInt(newRoomKapacita)
-        })
+      const result = await addRoom({
+        cislo: parseInt(newRoomCislo),
+        kapacita: parseInt(newRoomKapacita)
       });
-
-      const data = await res.json();
       
-      if (!res.ok) {
-        // Extract the specific error message from the response
-        const errorMessage = data.message || data.error || 'Nepodarilo sa pridať izbu';
-        throw new Error(errorMessage);
-      }
-
-      setShowAddModal(false);
-      resetForm();
-      setToastMessage('Nová izba bola úspešne pridaná.');
-      setToastVariant('success');
-      setShowToast(true);
-      
-      // Refresh the rooms list
-      const roomsRes = await fetch(`${API_URL}/izba/read`);
-      if (roomsRes.ok) {
-        const roomsData = await roomsRes.json();
-        setRooms(roomsData);
+      if (result.success) {
+        setShowAddModal(false);
+        resetForm();
+        setToastMessage('Nová izba bola úspešne pridaná.');
+        setToastVariant('success');
+        setShowToast(true);
+      } else {
+        throw new Error(result.message || 'Nepodarilo sa pridať izbu');
       }
     } catch (err) {
       console.error('Error adding room:', err);
@@ -196,33 +147,19 @@ function RoomsPage() {
     }
   }
 
+  // Delete room function - now uses context function
   const handleDeleteRoom = async (roomId) => {
     if (!window.confirm("Naozaj chcete odstrániť túto izbu?")) return;
+    
     try {
-      const res = await fetch(`${API_URL}/izba/delete`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_izba: roomId })
-      });
+      const result = await deleteRoom(roomId);
       
-      const data = await res.json();
-      console.log('Server response:', data, 'Status:', res.status);
-      
-      if (!res.ok) {
-        // Extract the specific error message from the response
-        const errorMessage = data.message || data.error || "Chyba pri odstraňovaní izby";
-        throw new Error(errorMessage);
-      }
-
-      setToastMessage('Izba bola úspešne odstránená.');
-      setToastVariant('success');
-      setShowToast(true);
-      
-      // Refresh the rooms list
-      const roomsRes = await fetch(`${API_URL}/izba/read`);
-      if (roomsRes.ok) {
-        const roomsData = await roomsRes.json();
-        setRooms(roomsData);
+      if (result.success) {
+        setToastMessage('Izba bola úspešne odstránená.');
+        setToastVariant('success');
+        setShowToast(true);
+      } else {
+        throw new Error(result.message || "Chyba pri odstraňovaní izby");
       }
     } catch (err) {
       console.error('Error deleting room:', err);
@@ -241,30 +178,23 @@ function RoomsPage() {
     setShowEditModal(true);
   };
 
-  const handleRoomChangeSuccess = async () => {
-    try {
-      const [studentsRes, roomsRes] = await Promise.all([
-        fetch(`${API_URL}/ziak/read`),
-        fetch(`${API_URL}/izba/read`)
-      ]);
-      
-      const studentsData = await studentsRes.json();
-      const roomsData = await roomsRes.json();
-      
-      setStudents(studentsData);
-      setRooms(roomsData);
-      
+  // Handle room change confirmation - using the DataContext function
+  const handleConfirmRoomChange = async (studentToMove, targetRoomId) => {
+    const oldRoomId = studentToMove.id_izba;
+    const result = await changeStudentRoom(studentToMove, oldRoomId, targetRoomId);
+
+    if (result.success) {
       setShowEditModal(false);
       setToastMessage('Izba študenta bola úspešne zmenená.');
       setToastVariant('success');
       setShowToast(true);
-    } catch (err) {
-      console.error("Error refreshing data after room change:", err);
+    } else {
       setShowEditModal(false);
-      setToastMessage('Izba študenta bola úspešne zmenená.');
-      setToastVariant('success');
+      setToastMessage(result.message || 'Chyba pri zmene izby študenta.');
+      setToastVariant('danger');
       setShowToast(true);
     }
+    return result;
   };
 
   const handleModalClose = () => {
@@ -414,35 +344,31 @@ function RoomsPage() {
         rooms={rooms}
         selectedRoomId={newRoomId}
         setSelectedRoomId={setNewRoomId}
-        onSuccess={handleRoomChangeSuccess}
-        setShowToast={setShowToast}
-        setToastMessage={setToastMessage}
-        setToastVariant={setToastVariant}
+        onConfirm={handleConfirmRoomChange}
       />
 
-        <Toast
-          onClose={() => setShowToast(false)}
-          show={showToast}
-          className={"position-fixed bottom-0 end-0 m-3"}
-          delay={3000}
-          autohide
-          style={{
-            minWidth: '300px',
-            backgroundColor: 'white',
-            minHeight: '90px',
-            borderRadius: '16px',
-          }}
-        >
-          <Toast.Body className="d-flex align-items-center">
-            {toastVariant === 'success' ? (
-              <FaCheckCircle className="text-success" style={{ fontSize: '6rem', marginRight: '1rem' }} />
-            ) : (
-              <FaTimesCircle className="text-danger" style={{ fontSize: '6rem', marginRight: '1rem' }} />
-            )}
-            <span style={{ fontSize: '1.7rem' }}>{toastMessage}</span>
-          </Toast.Body>
-        </Toast>
-      
+      <Toast
+        onClose={() => setShowToast(false)}
+        show={showToast}
+        className={"position-fixed bottom-0 end-0 m-3"}
+        delay={3000}
+        autohide
+        style={{
+          minWidth: '300px',
+          backgroundColor: 'white',
+          minHeight: '90px',
+          borderRadius: '16px',
+        }}
+      >
+        <Toast.Body className="d-flex align-items-center">
+          {toastVariant === 'success' ? (
+            <FaCheckCircle className="text-success" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+          ) : (
+            <FaTimesCircle className="text-danger" style={{ fontSize: '6rem', marginRight: '1rem' }} />
+          )}
+          <span style={{ fontSize: '1.7rem' }}>{toastMessage}</span>
+        </Toast.Body>
+      </Toast>
     </Container>
   );
 }

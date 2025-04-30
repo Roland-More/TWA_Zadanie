@@ -10,7 +10,7 @@ function AppNavbar() {
     <Navbar bg="white" expand="lg" className="shadow-sm mb-4 border-bottom py-3">
       <Container>
         <Navbar.Brand as={Link} to="/" className="fw-bold fs-4 text-primary">
-          Internát
+          Zabijácky internát serus
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Container, Spinner, Alert, Button, Modal, Form, Toast } from 'react-bootstrap';
 import { FaPlus, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { Formik } from 'formik';
@@ -6,7 +6,9 @@ import * as Yup from 'yup';
 import StudentsTable from '../components/StudentsTable';
 import StudentsCards from '../components/StudentsCards';
 import ChangeRoomModal from '../components/ChangeRoom';
+import { useData } from '../context/DataContext';
 
+// Yup Schema remains the same
 const StudentSchema = Yup.object().shape({
   meno: Yup.string()
     .matches(/^[A-ZÁ-Ž][a-zá-ž]{0,29}$/, 'Meno musí začínať veľkým písmenom a obsahovať len písmená')
@@ -44,24 +46,31 @@ const StudentSchema = Yup.object().shape({
 });
 
 function StudentsPage() {
-  const [students, setStudents] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // --- Consume DataContext ---
+  const {
+    students,
+    rooms,
+    loading,
+    error,
+    addStudent,    // Function from context
+    deleteStudent, // Function from context
+    changeStudentRoom // Function from context
+  } = useData();
+
+  // --- Local UI State remains ---
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  // Note: newRoomId might be better managed within ChangeRoomModal itself,
+  // but keeping it here based on original code structure for now.
   const [newRoomId, setNewRoomId] = useState('');
   const [viewMode, setViewMode] = useState(window.innerWidth > 768 ? 'table' : 'cards');
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVariant, setToastVariant] = useState('success');
 
-  const API_URL = process.env.REACT_APP_API_URL;
-
-  // Handle window resize
+  // Handle window resize (No change needed)
   const handleResize = useCallback(() => {
     const mobile = window.innerWidth <= 768;
     setIsMobile(mobile);
@@ -71,216 +80,95 @@ function StudentsPage() {
   }, []);
 
   useEffect(() => {
-    // Set initial view mode based on screen size
     handleResize();
-    
-    // Add event listener for window resize
     window.addEventListener('resize', handleResize);
-    
-    // Clean up event listener
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [studentsRes, roomsRes] = await Promise.all([
-          fetch(`${API_URL}/ziak/read`),
-          fetch(`${API_URL}/izba/read`)
-        ]);
-    
-        const studentsData = await studentsRes.json();
-        const roomsData = await roomsRes.json();
-    
-        console.log('Room data from API:', roomsData);
-        
-        setStudents(studentsData);
-        setRooms(roomsData);
-        setLoading(false);
+  // --- Removed initial data fetching useEffect ---
+  // Data (students, rooms, loading, error) now comes from DataContext
 
-      } catch (err) {
-        console.error("Chyba pri načítaní:", err);
-        setError("Nepodarilo sa načítať údaje o študentoch alebo izbách.");
-        setLoading(false);
-      }
-    };
-  
-    fetchData();
-  }, [API_URL]);
+
+  // --- Handler Functions Adapted to Use Context ---
 
   const handleAddStudent = async (values, { resetForm, setSubmitting, setErrors }) => {
-    try {  
-      const res = await fetch(`${API_URL}/ziak/insert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
-      });
-  
-      const data = await res.json();
-      if (!res.ok) {
-        const errorMessage = data.message || data.error || "Nepodarilo sa pridať študenta.";
-        
-        // Check if we have field-specific validation errors from the server
-        if (data.validationErrors) {
-          setErrors(data.validationErrors);
-          throw new Error("Oprav chyby vo formulári");
-        }
-        
-        throw new Error(errorMessage);
-      }
-      
-      const newStudentData = {
-        ...values,
-        id_ziak: data.id_ziak // Try to use any ID returned from server
-      };
-      
-      // Ensure id_izba is a number
-      newStudentData.id_izba = parseInt(newStudentData.id_izba || values.id_izba);
-      
-      // Find the room information for this student
-      const studentRoom = rooms.find(room => room.id_izba === newStudentData.id_izba);
-      
-      // Add room information to the student object
-      const enhancedStudentData = {
-        ...newStudentData,
-        room: studentRoom,
-        cislo_izby: studentRoom?.cislo
-      };
-      
-      setStudents(prevStudents => [...prevStudents, enhancedStudentData]);
-      
-      // Update room occupancy
-      setRooms(prevRooms => prevRooms.map(room => 
-        room.id_izba === newStudentData.id_izba
-          ? { ...room, pocet_ubytovanych: room.pocet_ubytovanych + 1 }
-          : room
-      ));
-      
+    setSubmitting(true); // Indicate submission start
+    const result = await addStudent(values); // Call context function
+
+    if (result.success) {
       setShowModal(false);
       resetForm();
-  
       setToastMessage('Študent bol úspešne pridaný.');
       setToastVariant('success');
       setShowToast(true);
-      
-      // After adding a student, refresh the student list to ensure correct IDs
-      fetchStudents();
-      
-    } catch (err) {
-      console.error(err);
-      
-      // Don't show toast for validation errors as they'll be displayed in the form
-      if (!err.message.includes("Oprav chyby vo formulári")) {
-        setToastMessage(err.message || 'Študenta sa nepodarilo pridať.');
-        setToastVariant('danger');
-        setShowToast(true);
+    } else {
+      // Handle errors from context function
+      if (result.validationErrors) {
+         setErrors(result.validationErrors); // Set formik errors
+         // Don't show toast for validation errors
+      } else {
+         setToastMessage(result.message || 'Študenta sa nepodarilo pridať.');
+         setToastVariant('danger');
+         setShowToast(true);
       }
-    } finally {
-      setSubmitting(false);
     }
-  };
-  
-  // Add this function to refresh the student list
-  const fetchStudents = async () => {
-    try {
-      const studentsRes = await fetch(`${API_URL}/ziak/read`);
-      const studentsData = await studentsRes.json();
-      setStudents(studentsData);
-    } catch (err) {
-      console.error("Error fetching students:", err);
-    }
+    setSubmitting(false); // Indicate submission end
   };
 
   const handleDeleteStudent = async (id_ziak) => {
     if (!window.confirm("Naozaj chceš odstrániť tohto študenta?")) return;
 
-    try {
-      // Find the student to get their room ID before deletion
-      const studentToDelete = students.find(student => student.id_ziak === id_ziak);
-      const roomId = studentToDelete?.id_izba;
-      
-      const res = await fetch(`${API_URL}/ziak/delete`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id_ziak })
-      });
-      
-      if (!res.ok){
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Chyba pri odstraňovaní študenta');
-      }
-        
-      // Update local state to remove the student
-      setStudents(prevStudents => prevStudents.filter(student => student.id_ziak !== id_ziak));
-      
-      // Update room occupancy if we have the room ID
-      if (roomId) {
-        setRooms(prevRooms => prevRooms.map(room => 
-          room.id_izba === roomId
-            ? { ...room, pocet_ubytovanych: Math.max(0, room.pocet_ubytovanych - 1) }
-            : room
-        ));
-      }
-      
+    const result = await deleteStudent(id_ziak); // Call context function
+
+    if (result.success) {
       setToastMessage('Študent úspešne odstránený.');
       setToastVariant('success');
       setShowToast(true);
-    } catch (err) {
-      console.error(err);
-      setToastMessage(err.message || 'Nepodarilo sa odstrániť študenta.');
+    } else {
+      setToastMessage(result.message || 'Nepodarilo sa odstrániť študenta.');
       setToastVariant('danger');
       setShowToast(true);
     }
   };
 
+  // Keep this to set state needed *before* showing the edit modal
   const handleStartMoveStudent = (student) => {
     setSelectedStudent(student);
+    // Find available rooms (excluding the student's current room)
     const availableRooms = rooms.filter(
       room => room.pocet_ubytovanych < room.kapacita && room.id_izba !== student.id_izba
     );
+    // Pre-select the first available room or none if no rooms are available/different
     setNewRoomId(availableRooms[0]?.id_izba || '');
     setShowEditModal(true);
   };
 
-  const handleRoomChangeSuccess = async (student, oldRoomId, newRoomId) => {
-    try {
-      // Update the student's room in the local state
-      setStudents(prevStudents => 
-        prevStudents.map(s => 
-          s.id_ziak === student.id_ziak 
-            ? { ...s, id_izba: newRoomId } 
-            : s
-        )
-      );
-      
-      // Update room occupancy for both rooms
-      setRooms(prevRooms => 
-        prevRooms.map(room => {
-          if (room.id_izba === parseInt(oldRoomId)) {
-            return { ...room, pocet_ubytovanych: Math.max(0, room.pocet_ubytovanych - 1) };
-          }
-          if (room.id_izba === parseInt(newRoomId)) {
-            return { ...room, pocet_ubytovanych: room.pocet_ubytovanych + 1 };
-          }
-          return room;
-        })
-      );
-      
-      setShowEditModal(false);
-      setToastMessage('Izba študenta bola úspešne zmenená.');
-      setToastVariant('success');
-      setShowToast(true);
-    } catch (err) {
-      console.error("Error updating room change:", err);
-      setShowEditModal(false);
-      setToastMessage('Chyba pri zmene izby študenta.');
-      setToastVariant('danger');
-      setShowToast(true);
-    }
-  };
+  // This function is now passed to the Modal to be called on confirmation
+  // It calls the context function to perform the update.
+  const handleConfirmRoomChange = async (studentToMove, targetRoomId) => {
+     // Context function needs student object, old room id, new room id
+     const oldRoomId = studentToMove.id_izba;
+     const result = await changeStudentRoom(studentToMove, oldRoomId, targetRoomId); // Call context function
 
+     if (result.success) {
+       setShowEditModal(false); // Close modal on success
+       setToastMessage('Izba študenta bola úspešne zmenená.');
+       setToastVariant('success');
+       setShowToast(true);
+     } else {
+       // Decide how to handle errors - show toast? Keep modal open?
+       // For now, close modal and show toast.
+       setShowEditModal(false);
+       setToastMessage(result.message || 'Chyba pri zmene izby študenta.');
+       setToastVariant('danger');
+       setShowToast(true);
+     }
+     // You might want the modal to know if the operation succeeded/failed
+     return result;
+   };
+
+
+  // --- JSX uses context data (loading, error, students, rooms) ---
   return (
     <Container className="py-4">
       <div className="mb-4">
@@ -301,155 +189,94 @@ function StudentsPage() {
         </div>
       </div>
 
+      {/* Use loading state from context */}
       {loading && (
         <div className="d-flex justify-content-center">
           <Spinner animation="border" />
         </div>
       )}
 
+      {/* Use error state from context */}
       {error && <Alert variant="danger">{error}</Alert>}
 
       {!loading && !error && (
         viewMode === 'cards' ? (
+          /* Pass context data and adapted handlers */
           <StudentsCards students={students} rooms={rooms} onDelete={handleDeleteStudent} onMove={handleStartMoveStudent} />
-          ) : (
+        ) : (
+          /* Pass context data and adapted handlers */
           <StudentsTable students={students} rooms={rooms} onDelete={handleDeleteStudent} onMove={handleStartMoveStudent} />
-        )     
+        )
       )}
 
+      {/* Add Student Modal - uses handleAddStudent */}
       <Modal show={showModal} onHide={() => setShowModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Pridať študenta</Modal.Title>
         </Modal.Header>
         <Formik
-          initialValues={{
-            meno: '',
-            priezvisko: '',
-            datum_narodenia: '',
-            email: '',
-            ulica: '',
-            mesto: '',
-            PSC: '',
-            id_izba: ''
+          initialValues={{ /* Initial values remain the same */
+            meno: '', priezvisko: '', datum_narodenia: '', email: '', ulica: '', mesto: '', PSC: '', id_izba: ''
           }}
           validationSchema={StudentSchema}
-          onSubmit={handleAddStudent}
+          onSubmit={handleAddStudent} // Use the adapted handler
         >
-          {({ handleSubmit, handleChange, values, touched, errors, isSubmitting, isValid }) => (
+          {({ handleSubmit, handleChange, values, touched, errors, isSubmitting }) => (
             <>
               <Modal.Body>
+                {/* Form structure remains the same, but uses rooms from context */}
                 <Form noValidate onSubmit={handleSubmit}>
+                  {/* Meno */}
                   <Form.Group className="mb-2">
                     <Form.Label>Meno</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      name="meno"
-                      value={values.meno}
-                      onChange={handleChange}
-                      isInvalid={touched.meno && !!errors.meno}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.meno}
-                    </Form.Control.Feedback>
+                    <Form.Control type="text" name="meno" value={values.meno} onChange={handleChange} isInvalid={touched.meno && !!errors.meno} />
+                    <Form.Control.Feedback type="invalid">{errors.meno}</Form.Control.Feedback>
                   </Form.Group>
-                  
+                  {/* Priezvisko */}
                   <Form.Group className="mb-2">
                     <Form.Label>Priezvisko</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      name="priezvisko"
-                      value={values.priezvisko}
-                      onChange={handleChange}
-                      isInvalid={touched.priezvisko && !!errors.priezvisko}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.priezvisko}
-                    </Form.Control.Feedback>
+                    <Form.Control type="text" name="priezvisko" value={values.priezvisko} onChange={handleChange} isInvalid={touched.priezvisko && !!errors.priezvisko} />
+                    <Form.Control.Feedback type="invalid">{errors.priezvisko}</Form.Control.Feedback>
                   </Form.Group>
-                  
+                  {/* Dátum narodenia */}
                   <Form.Group className="mb-2">
-                    <Form.Label>Dátum narodenia</Form.Label>
-                    <Form.Control 
-                      type="date" 
-                      name="datum_narodenia"
-                      value={values.datum_narodenia}
-                      onChange={handleChange}
-                      isInvalid={touched.datum_narodenia && !!errors.datum_narodenia}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.datum_narodenia}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-                  
+                     <Form.Label>Dátum narodenia</Form.Label>
+                     <Form.Control type="date" name="datum_narodenia" value={values.datum_narodenia} onChange={handleChange} isInvalid={touched.datum_narodenia && !!errors.datum_narodenia} />
+                     <Form.Control.Feedback type="invalid">{errors.datum_narodenia}</Form.Control.Feedback>
+                   </Form.Group>
+                  {/* Email */}
+                   <Form.Group className="mb-2">
+                     <Form.Label>Email</Form.Label>
+                     <Form.Control type="email" name="email" value={values.email} onChange={handleChange} isInvalid={touched.email && !!errors.email} />
+                     <Form.Control.Feedback type="invalid">{errors.email}</Form.Control.Feedback>
+                   </Form.Group>
+                  {/* Ulica */}
                   <Form.Group className="mb-2">
-                    <Form.Label>Email</Form.Label>
-                    <Form.Control 
-                      type="email" 
-                      name="email"
-                      value={values.email}
-                      onChange={handleChange}
-                      isInvalid={touched.email && !!errors.email}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.email}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-                  
+                     <Form.Label>Ulica</Form.Label>
+                     <Form.Control type="text" name="ulica" value={values.ulica} onChange={handleChange} isInvalid={touched.ulica && !!errors.ulica} />
+                     <Form.Control.Feedback type="invalid">{errors.ulica}</Form.Control.Feedback>
+                   </Form.Group>
+                  {/* Mesto */}
                   <Form.Group className="mb-2">
-                    <Form.Label>Ulica</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      name="ulica"
-                      value={values.ulica}
-                      onChange={handleChange}
-                      isInvalid={touched.ulica && !!errors.ulica}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.ulica}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-                  
-                  <Form.Group className="mb-2">
-                    <Form.Label>Mesto</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      name="mesto"
-                      value={values.mesto}
-                      onChange={handleChange}
-                      isInvalid={touched.mesto && !!errors.mesto}
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.mesto}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-                  
-                  <Form.Group className="mb-2">
-                    <Form.Label>PSČ</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      name="PSC"
-                      value={values.PSC}
-                      onChange={handleChange}
-                      isInvalid={touched.PSC && !!errors.PSC}
-                      placeholder="Formát: 123 45"
-                    />
-                    <Form.Control.Feedback type="invalid">
-                      {errors.PSC}
-                    </Form.Control.Feedback>
-                  </Form.Group>
-                  
+                     <Form.Label>Mesto</Form.Label>
+                     <Form.Control type="text" name="mesto" value={values.mesto} onChange={handleChange} isInvalid={touched.mesto && !!errors.mesto} />
+                     <Form.Control.Feedback type="invalid">{errors.mesto}</Form.Control.Feedback>
+                   </Form.Group>
+                  {/* PSC */}
+                   <Form.Group className="mb-2">
+                     <Form.Label>PSČ</Form.Label>
+                     <Form.Control type="text" name="PSC" value={values.PSC} onChange={handleChange} isInvalid={touched.PSC && !!errors.PSC} placeholder="Formát: 123 45"/>
+                     <Form.Control.Feedback type="invalid">{errors.PSC}</Form.Control.Feedback>
+                   </Form.Group>
+                  {/* Izba */}
                   <Form.Group>
                     <Form.Label>Izba</Form.Label>
-                    <Form.Select 
-                      name="id_izba"
-                      value={values.id_izba}
-                      onChange={handleChange}
-                      isInvalid={touched.id_izba && !!errors.id_izba}
-                    >
+                    <Form.Select name="id_izba" value={values.id_izba} onChange={handleChange} isInvalid={touched.id_izba && !!errors.id_izba}>
                       <option value="">Vyber izbu</option>
+                      {/* Use rooms from context */}
                       {rooms.map(room => (
-                        <option 
-                          key={room.id_izba} 
+                        <option
+                          key={room.id_izba}
                           value={room.id_izba}
                           disabled={room.pocet_ubytovanych >= room.kapacita}
                         >
@@ -458,19 +285,13 @@ function StudentsPage() {
                         </option>
                       ))}
                     </Form.Select>
-                    <Form.Control.Feedback type="invalid">
-                      {errors.id_izba}
-                    </Form.Control.Feedback>
+                    <Form.Control.Feedback type="invalid">{errors.id_izba}</Form.Control.Feedback>
                   </Form.Group>
                 </Form>
               </Modal.Body>
               <Modal.Footer>
                 <Button variant="secondary" onClick={() => setShowModal(false)}>Zrušiť</Button>
-                <Button 
-                  variant="primary" 
-                  onClick={handleSubmit} 
-                  disabled={isSubmitting}
-                >
+                <Button variant="primary" onClick={handleSubmit} disabled={isSubmitting}>
                   {isSubmitting ? 'Pridávam...' : 'Pridať'}
                 </Button>
               </Modal.Footer>
@@ -479,31 +300,29 @@ function StudentsPage() {
         </Formik>
       </Modal>
 
+      {/* Edit Room Modal - Uses handleConfirmRoomChange */}
+      {/* Pass the function to execute the change, likely via an 'onConfirm' or similar prop */}
       <ChangeRoomModal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
         student={selectedStudent}
-        rooms={rooms}
+        rooms={rooms} // Pass rooms from context
+        // You might need to adjust ChangeRoomModal to accept `onConfirm`
+        // instead of onSuccess/setToast etc., or adjust how it uses them.
+        // This example assumes it takes `onConfirm`.
+        onConfirm={handleConfirmRoomChange}
         selectedRoomId={newRoomId}
         setSelectedRoomId={setNewRoomId}
-        onSuccess={handleRoomChangeSuccess}
-        setShowToast={setShowToast}
-        setToastMessage={setToastMessage}
-        setToastVariant={setToastVariant}
       />
-      
+
+      {/* Toast Notification (No change needed) */}
       <Toast
           onClose={() => setShowToast(false)}
           show={showToast}
           className={"position-fixed bottom-0 end-0 m-3"}
           delay={3000}
           autohide
-          style={{
-            minWidth: '300px',
-            backgroundColor: 'white',
-            minHeight: '90px',
-            borderRadius: '16px',
-          }}
+          style={{ /* style */ minWidth: '300px', backgroundColor: 'white', minHeight: '90px', borderRadius: '16px' }}
         >
           <Toast.Body className="d-flex align-items-center">
             {toastVariant === 'success' ? (

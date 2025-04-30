@@ -8,54 +8,12 @@ export function ChangeRoomModal({
   rooms, 
   selectedRoomId, 
   setSelectedRoomId, 
-  onSuccess,
+  onConfirm,
   setShowToast,
   setToastMessage,
   setToastVariant
 }) {
-  const API_URL = process.env.REACT_APP_API_URL;
-
-  const handleChangeRoom = async () => {
-    try {
-      const res = await fetch(`${API_URL}/ziak/update-room`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_ziak: student.id_ziak,
-          id_izba: selectedRoomId
-        })
-      });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseError) {
-        console.error('Error parsing JSON response:', parseError);
-        data = {};
-      }
-      
-      if (!res.ok) {
-        let errorMessage = 'Nepodarilo sa zmeniť izbu';
-        
-        if (data) {
-          if (data.message) errorMessage = data.message;
-          else if (data.error) errorMessage = data.error;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      onSuccess();
-      onHide();
-    } catch (err) {
-      console.error('Error changing room:', err);
-      setToastMessage(err.message);
-      setToastVariant('danger');
-      setShowToast(true);
-      onHide();
-    }
-  };
-
+  
   if (!student) return null;
 
   const availableRooms = rooms.filter(
@@ -94,7 +52,7 @@ export function ChangeRoomModal({
         </Button>
         <Button
           variant="primary"
-          onClick={handleChangeRoom}
+          onClick={() => onConfirm(student, selectedRoomId)}
           disabled={!selectedRoomId || availableRooms.length === 0}
         >
           Potvrdiť
