@@ -46,3 +46,13 @@ exports.updateRoom = async (id_ziak, id_izba) => {
     throw error;
   }
 };
+
+exports.update = async (id_ziak, meno, priezvisko, datum_narodenia, email, ulica, mesto, PSC, id_izba) => {
+  try {
+    const result = await ziakDao.update(id_ziak, meno, priezvisko, datum_narodenia, email, ulica, mesto, PSC, id_izba);
+    return { success: true, message: 'Izba úspešne zmenená' };
+  } catch (error) {
+    console.error('Error in ziakService.updateRoom:', error);
+    throw error;
+  }
+};

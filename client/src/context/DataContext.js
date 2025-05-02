@@ -179,6 +179,71 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const updateStudent = async (student, oldRoomId, newRoomId) => {
+    try {
+      const res = await fetch(`${API_URL}/ziak/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_ziak: student.id_ziak,
+          meno: student.meno,
+          priezvisko: student.priezvisko,
+          datum_narodenia: new Date(student.datum_narodenia).toISOString().split('T')[0],
+          email: student.email,
+          ulica: student.ulica,
+          mesto: student.mesto,
+          PSC: student.PSC,
+          id_izba: newRoomId
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Chyba pri uprave študenta.');
+      }
+
+      // Update the student's room in the local state
+      setStudents(prevStudents =>
+        prevStudents.map(s =>
+          s.id_ziak === student.id_ziak
+            ? {
+                ...s,
+                meno: student.meno,
+                priezvisko: student.priezvisko,
+                datum_narodenia: student.datum_narodenia,
+                email: student.email,
+                ulica: student.ulica,
+                mesto: student.mesto,
+                PSC: student.PSC,
+                id_izba: parseInt(newRoomId)
+              }
+            : s
+        )
+      );
+      
+      
+      // Update room occupancy for both rooms
+      if (oldRoomId!== newRoomId) {
+        setRooms(prevRooms => 
+          prevRooms.map(room => {
+            if (room.id_izba === parseInt(oldRoomId)) {
+              return { ...room, pocet_ubytovanych: Math.max(0, room.pocet_ubytovanych - 1) };
+            }
+            if (room.id_izba === parseInt(newRoomId)) {
+              return { ...room, pocet_ubytovanych: room.pocet_ubytovanych + 1 };
+            }
+            return room;
+          })
+        );
+      }
+      
+      return { success: true };
+    } catch (err) {
+      console.error("Error updating student:", err);
+      return { success: false, message: err.message || 'Chyba pri zmene študenta.' };
+    }
+  };
+
   const addRoom = async (roomData) => {
     try {
       const res = await fetch(`${API_URL}/izba/insert`, {
@@ -250,6 +315,7 @@ export const DataProvider = ({ children }) => {
       addStudent, 
       deleteStudent, 
       changeStudentRoom,
+      updateStudent,
       addRoom,
       deleteRoom
     }}>

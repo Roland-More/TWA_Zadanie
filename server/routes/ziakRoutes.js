@@ -7,5 +7,6 @@ router.post('/insert', ziakController.insert);
 router.delete('/delete', ziakController.remove);
 router.get('/read/additional', ziakController.getAdditional);
 router.put('/update-room', ziakController.updateRoom);
+router.put('/update', ziakController.update);
 
 module.exports = router;

@@ -85,3 +85,40 @@ exports.updateRoom = async (id_ziak, id_izba) => {
     throw error;
   }
 };
+
+exports.update = async (id_ziak, meno, priezvisko, datum_narodenia, email, ulica, mesto, PSC, id_izba) => {
+  const pool = await poolPromise;
+  try {
+    const result = await pool.request()
+      .input('id_ziak', sql.Int, id_ziak)
+      .input('meno', sql.VarChar(30), meno)
+      .input('priezvisko', sql.VarChar(30), priezvisko)
+      .input('datum_narodenia', sql.Date, datum_narodenia)
+      .input('email', sql.VarChar(30), email)
+      .input('ulica', sql.VarChar(30), ulica)
+      .input('mesto', sql.VarChar(30), mesto)
+      .input('PSC', sql.VarChar(6), PSC)
+      .input('id_izba', sql.Int, id_izba)
+      .query(`
+        UPDATE ziak
+        SET meno = @meno,
+            priezvisko = @priezvisko,
+            datum_narodenia = @datum_narodenia,
+            email = @email,
+            ulica = @ulica,
+            mesto = @mesto,
+            PSC = @PSC,
+            id_izba = @id_izba
+        WHERE id_ziak = @id_ziak
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      throw new Error('Študent s daným ID nebol nájdený');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error in ziakDao.update:', error);
+    throw error;
+  }
+};

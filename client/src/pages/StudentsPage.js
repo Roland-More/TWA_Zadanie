@@ -54,10 +54,12 @@ function StudentsPage() {
     error,
     addStudent,    // Function from context
     deleteStudent, // Function from context
-    changeStudentRoom // Function from context
+    updateStudent
   } = useData();
 
-  // --- Local UI State remains ---
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [studentIdToDelete, setStudentIdToDelete] = useState(null);
+
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -115,20 +117,32 @@ function StudentsPage() {
     setSubmitting(false); // Indicate submission end
   };
 
-  const handleDeleteStudent = async (id_ziak) => {
-    if (!window.confirm("Naozaj chceš odstrániť tohto študenta?")) return;
+   const handleDeleteStudent = async (id_ziak) => {
+    try {
+      const result = await deleteStudent(id_ziak); // Call context function
 
-    const result = await deleteStudent(id_ziak); // Call context function
-
-    if (result.success) {
-      setToastMessage('Študent úspešne odstránený.');
-      setToastVariant('success');
-      setShowToast(true);
-    } else {
-      setToastMessage(result.message || 'Nepodarilo sa odstrániť študenta.');
+      if (result.success) {
+        setShowDeleteModal(false);
+        setStudentIdToDelete(null);
+        setToastMessage('Študent úspešne odstránený.');
+        setToastVariant('success');
+        setShowToast(true);
+      } else {
+        throw new Error(result.message || 'Nepodarilo sa odstrániť študenta.');
+      }
+    } catch (err) {
+      console.error('Error deleting student:', err);
+      setShowDeleteModal(false);
+      setStudentIdToDelete(null);
+      setToastMessage(err.message || 'Nepodarilo sa odstrániť študenta.');
       setToastVariant('danger');
       setShowToast(true);
     }
+  };
+
+  const openDeleteModal = (id_ziak) => {
+    setStudentIdToDelete(id_ziak);
+    setShowDeleteModal(true);
   };
 
   // Keep this to set state needed *before* showing the edit modal
@@ -143,12 +157,9 @@ function StudentsPage() {
     setShowEditModal(true);
   };
 
-  // This function is now passed to the Modal to be called on confirmation
-  // It calls the context function to perform the update.
   const handleConfirmRoomChange = async (studentToMove, targetRoomId) => {
-     // Context function needs student object, old room id, new room id
      const oldRoomId = studentToMove.id_izba;
-     const result = await changeStudentRoom(studentToMove, oldRoomId, targetRoomId); // Call context function
+     const result = await updateStudent(studentToMove, oldRoomId, targetRoomId); // Call context function
 
      if (result.success) {
        setShowEditModal(false); // Close modal on success
@@ -167,8 +178,6 @@ function StudentsPage() {
      return result;
    };
 
-
-  // --- JSX uses context data (loading, error, students, rooms) ---
   return (
     <Container className="py-4">
       <div className="mb-4">
@@ -202,10 +211,10 @@ function StudentsPage() {
       {!loading && !error && (
         viewMode === 'cards' ? (
           /* Pass context data and adapted handlers */
-          <StudentsCards students={students} rooms={rooms} onDelete={handleDeleteStudent} onMove={handleStartMoveStudent} />
+          <StudentsCards students={students} rooms={rooms} onDelete={openDeleteModal} onMove={handleStartMoveStudent} />
         ) : (
           /* Pass context data and adapted handlers */
-          <StudentsTable students={students} rooms={rooms} onDelete={handleDeleteStudent} onMove={handleStartMoveStudent} />
+          <StudentsTable students={students} rooms={rooms} onDelete={openDeleteModal} onMove={handleStartMoveStudent} />
         )
       )}
 
@@ -300,27 +309,46 @@ function StudentsPage() {
         </Formik>
       </Modal>
 
-      {/* Edit Room Modal - Uses handleConfirmRoomChange */}
-      {/* Pass the function to execute the change, likely via an 'onConfirm' or similar prop */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Potvrdiť odstránenie</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {studentIdToDelete && (
+            <p>
+              Naozaj chcete odstrániť študenta <strong>{studentIdToDelete.meno} {studentIdToDelete.priezvisko}</strong>?
+              Táto akcia je nevratná.
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Zrušiť
+          </Button>
+          <Button 
+            variant="danger"
+            onClick={() => studentIdToDelete && handleDeleteStudent(studentIdToDelete)}
+          >
+            Odstrániť
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <ChangeRoomModal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
         student={selectedStudent}
         rooms={rooms} // Pass rooms from context
-        // You might need to adjust ChangeRoomModal to accept `onConfirm`
-        // instead of onSuccess/setToast etc., or adjust how it uses them.
-        // This example assumes it takes `onConfirm`.
         onConfirm={handleConfirmRoomChange}
         selectedRoomId={newRoomId}
         setSelectedRoomId={setNewRoomId}
       />
 
-      {/* Toast Notification (No change needed) */}
       <Toast
           onClose={() => setShowToast(false)}
           show={showToast}
           className={"position-fixed bottom-0 end-0 m-3"}
-          delay={3000}
+          delay={2000}
           autohide
           style={{ /* style */ minWidth: '300px', backgroundColor: 'white', minHeight: '90px', borderRadius: '16px' }}
         >

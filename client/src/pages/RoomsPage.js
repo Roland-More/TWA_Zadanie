@@ -11,7 +11,7 @@ function RoomsPage() {
     rooms,
     loading,
     error,
-    changeStudentRoom, // Function to move student to different room
+    updateStudent,
     addRoom,        // Function to add a new room
     deleteRoom      // Function to delete a room
   } = useData();
@@ -23,6 +23,9 @@ function RoomsPage() {
   const [formErrors, setFormErrors] = useState({});
   const [isFormValid, setIsFormValid] = useState(false);
   const [touchedFields, setTouchedFields] = useState({ cislo: false, kapacita: false });
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -147,14 +150,13 @@ function RoomsPage() {
     }
   }
 
-  // Delete room function - now uses context function
   const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm("Naozaj chcete odstrániť túto izbu?")) return;
-    
     try {
       const result = await deleteRoom(roomId);
       
       if (result.success) {
+        setShowDeleteModal(false);
+        setRoomToDelete(null);
         setToastMessage('Izba bola úspešne odstránená.');
         setToastVariant('success');
         setShowToast(true);
@@ -163,10 +165,17 @@ function RoomsPage() {
       }
     } catch (err) {
       console.error('Error deleting room:', err);
+      setShowDeleteModal(false);
+      setRoomToDelete(null);
       setToastMessage(err.message || 'Nepodarilo sa odstrániť izbu.');
       setToastVariant('danger');
       setShowToast(true);
     }
+  };
+
+  const openDeleteModal = (room) => {
+    setRoomToDelete(room);
+    setShowDeleteModal(true);
   };
 
   const handleStartMoveStudent = (student) => {
@@ -181,7 +190,7 @@ function RoomsPage() {
   // Handle room change confirmation - using the DataContext function
   const handleConfirmRoomChange = async (studentToMove, targetRoomId) => {
     const oldRoomId = studentToMove.id_izba;
-    const result = await changeStudentRoom(studentToMove, oldRoomId, targetRoomId);
+    const result = await updateStudent(studentToMove, oldRoomId, targetRoomId);
 
     if (result.success) {
       setShowEditModal(false);
@@ -276,7 +285,7 @@ function RoomsPage() {
                         variant="danger"
                         size="sm"
                         disabled={studentsInRoom.length > 0}
-                        onClick={() => handleDeleteRoom(room.id_izba)}
+                        onClick={() => openDeleteModal(room)}
                       >
                         <FaTrashAlt className="me-1" style={{ fontSize: '1.2rem', marginBottom: '0.1rem' }} />
                         Odstrániť izbu
@@ -337,6 +346,31 @@ function RoomsPage() {
         </Modal.Footer>
       </Modal>
 
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Potvrdiť odstránenie</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {roomToDelete && (
+            <p>
+              Naozaj chcete odstrániť izbu číslo <strong>{roomToDelete.cislo}</strong>?
+              Táto akcia je nevratná.
+            </p>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Zrušiť
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={() => roomToDelete && handleDeleteRoom(roomToDelete.id_izba)}
+          >
+            Odstrániť
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <ChangeRoomModal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
@@ -351,7 +385,7 @@ function RoomsPage() {
         onClose={() => setShowToast(false)}
         show={showToast}
         className={"position-fixed bottom-0 end-0 m-3"}
-        delay={3000}
+        delay={2000}
         autohide
         style={{
           minWidth: '300px',

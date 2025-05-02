@@ -9,9 +9,9 @@ export function ChangeRoomModal({
   selectedRoomId, 
   setSelectedRoomId, 
   onConfirm,
-  setShowToast,
-  setToastMessage,
-  setToastVariant
+  // setShowToast,
+  // setToastMessage,
+  // setToastVariant
 }) {
   
   if (!student) return null;

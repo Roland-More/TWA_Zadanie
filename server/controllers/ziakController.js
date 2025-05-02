@@ -59,3 +59,22 @@ exports.updateRoom = async (req, res) => {
     res.status(500).json({ message: 'Chyba servera' });
   }
 };
+
+exports.update = async (req, res) => {
+  try {
+    const isValid = ziakValidator.validateUpdateStudent(req.body);
+    if (!isValid) {
+        return res.status(400).json({
+            message: 'Neplatné dáta',
+            errors: ziakValidator.validateUpdateStudent.errors
+        });
+    }
+    
+    const { id_ziak, meno, priezvisko, datum_narodenia, email, ulica, mesto, PSC, id_izba } = req.body;
+    const result = await ziakService.update(id_ziak, meno, priezvisko, datum_narodenia, email, ulica, mesto, PSC, id_izba);
+    res.json(result);
+  } catch (err) {
+    console.error('Error updating room:', err);
+    res.status(500).json({ message: 'Chyba servera' });
+  }
+};
